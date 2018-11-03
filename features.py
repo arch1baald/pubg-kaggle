@@ -1,7 +1,48 @@
+# Если генератор признаков зависит от состояния, то необходимо отдельно определять метод fit_transform!
+
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.impute import SimpleImputer
-from sklearn.pipeline import FeatureUnion, Pipeline
+
+
+class FeatureGenerator(BaseEstimator, TransformerMixin):
+    """
+    Иерархия:
+        - SimpleFeatureGenerator
+        - GroupAggregatedFeatureGenerator,
+    """
+    def __init__(self, numerical_columns, id_columns=None, target_column=None, categorical_columns=None):
+        self.created_features = None
+        self.id_columns = id_columns
+        self.target_column = target_column
+        self.categorical_columns = categorical_columns
+        self.numerical_columns = numerical_columns
+
+    def fit_transform(self, df, y=None, **fit_params):
+        return self.transform(df)
+
+    def transform(self, df):
+        # Hand Written Features
+        simple_feature_generator = SimpleFeatureGenerator()
+        df_features = pd.concat([df, simple_feature_generator.fit_transform(df)], axis=1)
+
+        # 1-st level
+        features = self.numerical_columns + simple_feature_generator.get_feature_names()
+        df_features = pd.concat([
+            df_features,
+            GroupAggregatedFeatureGenerator(features).fit_transform(df_features),
+        ], axis=1)
+
+        if self.created_features is None:
+            self.created_features = [col for col in df_features.columns if col in df.columns]
+        else:
+            assert self.created_features == [col for col in df_features.columns if col in df.columns]
+        return df_features
+
+    def fit(self, x, y=None, **fit_params):
+        return self
+
+    def get_feature_names(self):
+        return self.created_features
 
 
 class SimpleFeatureGenerator(BaseEstimator, TransformerMixin):
@@ -10,6 +51,9 @@ class SimpleFeatureGenerator(BaseEstimator, TransformerMixin):
     """
     def __init__(self):
         self.created_features = None
+
+    def fit_transform(self, df, y=None, **fit_params):
+        return self.transform(df)
     
     def transform(self, df):
         df_features = pd.DataFrame()
@@ -49,6 +93,9 @@ class GroupAggregatedFeatureGenerator(BaseEstimator, TransformerMixin):
     def __init__(self, features):
         self.created_features = None
         self.features = features
+
+    def fit_transform(self, df, y=None, **fit_params):
+        return self.transform(df)
 
     def transform(self, df):
         df_features = []
@@ -110,6 +157,9 @@ class ColumnsSelector(BaseEstimator, TransformerMixin):
     def __init__(self, columns):
         self.columns = columns
         self.created_features = None
+
+    def fit_transform(self, df, y=None, **fit_params):
+        return self.transform(df)
 
     def transform(self, df_x):
         df_selected = df_x[self.columns].copy()
