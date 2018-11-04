@@ -109,13 +109,15 @@ class GroupAggregatedFeatureGenerator(BaseEstimator, TransformerMixin):
             # Rank Groups by Match
             columns_to_select = list(agg_column_names.values())
             # Anyway deletes match_id
-            df_ranked = df_aggregated.groupby('match_id', as_index=False)[columns_to_select].rank(pct=True)
-            ranked_column_names = {col: f'rank_{col}' for col in columns_to_select}
-            df_ranked.rename(columns=ranked_column_names, inplace=True)
-            # Unsafe merge because of rank, which deletes match_id
-            df_aggregated_ranked = pd.concat([df_aggregated, df_ranked], axis=1)
-            df_features.append(df_aggregated_ranked)
-            del df_aggregated, df_ranked
+#             df_ranked = df_aggregated.groupby('match_id', as_index=False)[columns_to_select].rank(pct=True)
+#             ranked_column_names = {col: f'rank_{col}' for col in columns_to_select}
+#             df_ranked.rename(columns=ranked_column_names, inplace=True)
+#             Unsafe merge because of rank, which deletes match_id
+#             df_aggregated_ranked = pd.concat([df_aggregated, df_ranked], axis=1)
+#             df_features.append(df_aggregated_ranked)
+#             del df_aggregated, df_ranked
+            df_features.append(df_aggregated)
+            # del df_aggregated
         df_features = pd.concat(df_features, axis=1)
 
         if self.created_features is None:
