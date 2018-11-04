@@ -22,6 +22,8 @@ class Preprocessor(BaseEstimator, TransformerMixin):
         x = df.drop(self.id_columns + [self.target_column] + self.categorical_columns, axis=1).copy()
         # Fill missings
         x.fillna(0, inplace=True)
+        # Feature Selection
+        
         # Normilize
         self.scaler = MinMaxScaler()
         self.features = x.columns
