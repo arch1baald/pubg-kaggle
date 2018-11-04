@@ -22,6 +22,7 @@ class Pipeline(BaseEstimator, TransformerMixin):
         self.preprocessor = None
 
     def fit_transform(self, df, y=None, **fit_params):
+        print('Transforming ...')
         self.feature_generator = FeatureGenerator(
             id_columns=self.id_columns,
             numerical_columns=self.numerical_columns,
@@ -40,6 +41,7 @@ class Pipeline(BaseEstimator, TransformerMixin):
         return x
 
     def transform(self, df):
+        print('Transforming ...')
         if self.feature_generator is None:
             raise NotFittedError(f'feature_generator = {self.feature_generator}')
         if self.preprocessor is None:
