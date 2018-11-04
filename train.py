@@ -57,6 +57,6 @@ for train_index, valid_index in kfold.split(df):
         save_model(step)
     except Exception:
         print("Warning: Couldn't save the model")
-    print(step['train_score'], ['valid_score'])
+    print(step['train_score'], step['valid_score'])
     log.append(step)
     break
