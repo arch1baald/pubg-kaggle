@@ -1,16 +1,14 @@
-# Если генератор признаков зависит от состояния, то необходимо отдельно определять метод fit_transform!
-
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 
 
 class FeatureGenerator(BaseEstimator, TransformerMixin):
     """
-    Иерархия:
+    Hierarchy:
         - SimpleFeatureGenerator
-        - GroupAggregatedFeatureGenerator,
+        - GroupAggregatedFeatureGenerator, ... joined using FeatureUnion
+        - ...
     """
-
     def __init__(self, numerical_columns, id_columns=None, target_column=None, categorical_columns=None):
         self.created_features = None
         self.id_columns = id_columns
@@ -23,6 +21,7 @@ class FeatureGenerator(BaseEstimator, TransformerMixin):
 
     def transform(self, df):
         print('FeatureGenerator ...')
+
         # Hand Written Features
         simple_feature_generator = SimpleFeatureGenerator()
         df_features = pd.concat([df, simple_feature_generator.fit_transform(df)], axis=1)
@@ -37,7 +36,7 @@ class FeatureGenerator(BaseEstimator, TransformerMixin):
         if self.created_features is None:
             self.created_features = [col for col in df_features.columns if col in df.columns]
         else:
-            # assert self.created_features == [col for col in df_features.columns if col in df.columns]
+            # TODO: test
             pass
         return df_features
 
@@ -50,9 +49,10 @@ class FeatureGenerator(BaseEstimator, TransformerMixin):
 
 class SimpleFeatureGenerator(BaseEstimator, TransformerMixin):
     """
+    Used to create features via handwritten rules
+
     Based on https://www.kaggle.com/deffro/eda-is-fun
     """
-
     def __init__(self):
         self.created_features = None
 
@@ -80,7 +80,7 @@ class SimpleFeatureGenerator(BaseEstimator, TransformerMixin):
         if self.created_features is None:
             self.created_features = list(df_features.columns)
         else:
-            # assert self.created_features == list(df_features.columns)
+            # TODO: test
             pass
         return df_features
 
@@ -93,6 +93,8 @@ class SimpleFeatureGenerator(BaseEstimator, TransformerMixin):
 
 class GroupAggregatedFeatureGenerator(BaseEstimator, TransformerMixin):
     """
+    Used to create aggregations by categories
+
     Based on https://www.kaggle.com/anycode/simple-nn-baseline-4
     """
 
@@ -112,16 +114,17 @@ class GroupAggregatedFeatureGenerator(BaseEstimator, TransformerMixin):
             agg_column_names = {col: f'{agg_type}_group_{col}' for col in self.features}
             df_aggregated.rename(columns=agg_column_names, inplace=True)
 
-            # Rank Groups by Match
-            columns_to_select = list(agg_column_names.values())
-            # Anyway deletes match_id
-#             df_ranked = df_aggregated.groupby('match_id', as_index=False)[columns_to_select].rank(pct=True)
-#             ranked_column_names = {col: f'rank_{col}' for col in columns_to_select}
-#             df_ranked.rename(columns=ranked_column_names, inplace=True)
-            # Unsafe merge because of rank, which deletes match_id
-#             df_aggregated_ranked = pd.concat([df_aggregated, df_ranked], axis=1)
-#             df_features.append(df_aggregated_ranked)
-#             del df_aggregated, df_ranked
+            # TODO: Computational problems
+            # # Rank Groups by Match
+            # columns_to_select = list(agg_column_names.values())
+            # # Anyway deletes match_id
+            # df_ranked = df_aggregated.groupby('match_id', as_index=False)[columns_to_select].rank(pct=True)
+            # ranked_column_names = {col: f'rank_{col}' for col in columns_to_select}
+            # df_ranked.rename(columns=ranked_column_names, inplace=True)
+            # # Unsafe merge because of rank, which deletes match_id
+            # df_aggregated_ranked = pd.concat([df_aggregated, df_ranked], axis=1)
+            # df_features.append(df_aggregated_ranked)
+            # del df_aggregated, df_ranked
             df_features.append(df_aggregated)
             del df_aggregated
         df_features = pd.concat(df_features, axis=1)
@@ -144,12 +147,12 @@ class GroupAggregatedFeatureGenerator(BaseEstimator, TransformerMixin):
 
     def restore_row_order(self, df, df_aggregated, on):
         """
-        Восстановление индекса, FeatureUnion просто стакает колонки,
-        поэтому результаты надо приводить к индексу в исходном датафрейме.
-        :param df:
-        :param df_aggregated:
-        :param on:
-        :return:
+        Sometimes pd.merge shuffles rows.
+        This merhod restores rows order after merging for correct FeatureUnion
+        :param df: source DataFrame
+        :param df_aggregated: DataFrame with new features
+        :param on: columns list or str with column name
+        :return: DataFrame with correct rows order
         """
         if isinstance(on, list):
             left_selected = ['index'] + on
