@@ -74,11 +74,13 @@ class Preprocessor(BaseEstimator, TransformerMixin):
     def fit_transform(self, df, y=None, **fit_params):
         print('Preprocessor ...')
         # Drop columns
-        x = df.drop(self.id_columns + [self.target_column] + self.categorical_columns, axis=1).copy()
+        to_drop = [col for col in df.columns if col in self.id_columns + [self.target_column] + self.categorical_columns]
+        x = df.drop(to_drop, axis=1).copy()
         # Fill missings
         x.fillna(0, inplace=True)
         # Feature Selection
         non_selected = [col for col in x.columns if col not in SELECTED_FEATURES]
+#         non_selected = []
         x.drop(non_selected, axis=1, inplace=True)
         # Normilize
         self.scaler = MinMaxScaler()
@@ -91,11 +93,13 @@ class Preprocessor(BaseEstimator, TransformerMixin):
     def transform(self, df):
         print('Preprocessor ...')
         # Drop columns
-        x = df.drop(self.id_columns + [self.target_column] + self.categorical_columns, axis=1).copy()
+        to_drop = [col for col in df.columns if col in self.id_columns + [self.target_column] + self.categorical_columns]
+        x = df.drop(to_drop, axis=1).copy()
         # Fill missings
         x.fillna(0, inplace=True)
         # Feature Selection
         non_selected = [col for col in x.columns if col not in SELECTED_FEATURES]
+#         non_selected = []
         x.drop(non_selected, axis=1, inplace=True)
         # Normilize
         x = pd.DataFrame(self.scaler.fit_transform(x.astype(np.float64)), columns=[col for col in self.features if col in SELECTED_FEATURES])
