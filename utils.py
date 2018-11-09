@@ -5,6 +5,7 @@ import pickle
 from datetime import datetime
 
 import pandas as pd
+from sklearn.model_selection import KFold
 
 
 def camelcase_to_underscore(string):
@@ -59,6 +60,38 @@ def split_columns_by_types(df):
         categorical=categorical_columns,
         numeric=numeric_columns
     )
+
+
+def kfold_with_respect_to_groups(df, n_splits, shuffle=True, random_state=None):
+    """
+    Splits data with respect to groups in matches.
+    To apply adjustment trick, players of one group in matches have to fall in the same fold.
+    :param df: DataFrame
+    :param n_splits: the number of folds
+    :param shuffle:
+    :param random_state:
+    :return: splits = [(train_idx, test_idx), ..., (train_idx, test_idx)]
+    """
+    df_match_groups = df.groupby(['match_id', 'group_id'], as_index=False)['id'].count()
+
+    kfold = KFold(n_splits, shuffle, random_state)
+    splits = []
+    for pseudo_train_idx, pseudo_valid_idx in kfold.split(df_match_groups):
+        df_train_match_groups = df_match_groups.loc[pseudo_train_idx, :]
+        select_train_match_groups = (
+                df['match_id'].isin(df_train_match_groups['match_id'])
+                & df['group_id'].isin(df_train_match_groups['group_id'])
+        )
+        train_idx = df[select_train_match_groups].index
+
+        df_valid_match_groups = df_match_groups.loc[pseudo_valid_idx, :]
+        select_valid_match_groups = (
+                df['match_id'].isin(df_valid_match_groups['match_id'])
+                & df['group_id'].isin(df_valid_match_groups['group_id'])
+        )
+        valid_idx = df[select_valid_match_groups].index
+        splits.append((train_idx, valid_idx))
+    return splits
 
 
 def save_model(pipeline_model_index_score):

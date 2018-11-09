@@ -108,7 +108,8 @@ class GroupAggregatedFeatureGenerator(BaseEstimator, TransformerMixin):
     def transform(self, df):
         df_features = []
         # Aggregate by Group
-        for agg_type in ('mean', 'max', 'min'):
+        # for agg_type in ('mean', 'max', 'min', 'count', 'std'):
+        for agg_type in ('mean', 'max', 'min', 'count', ):
             df_aggregated = df.groupby(['match_id', 'group_id'], as_index=False)[self.features].agg(agg_type)
             df_aggregated = self.restore_row_order(df, df_aggregated, on=['match_id', 'group_id'])
             agg_column_names = {col: f'{agg_type}_group_{col}' for col in self.features}
