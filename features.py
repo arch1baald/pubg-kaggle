@@ -9,25 +9,27 @@ class FeatureGenerator(BaseEstimator, TransformerMixin):
         - GroupAggregatedFeatureGenerator, ... joined using FeatureUnion
         - ...
     """
-    def __init__(self, numerical_columns, id_columns=None, target_column=None, categorical_columns=None):
+    def __init__(self, numeric, id=None, target=None, categorical=None, verbose=0):
         self.created_features = None
-        self.id_columns = id_columns
-        self.target_column = target_column
-        self.categorical_columns = categorical_columns
-        self.numerical_columns = numerical_columns
+        self.id = id
+        self.target = target
+        self.categorical = categorical
+        self.numeric = numeric
+        self.verbose = verbose
 
     def fit_transform(self, df, y=None, **fit_params):
         return self.transform(df)
 
     def transform(self, df):
-        print('FeatureGenerator ...')
+        if self.verbose == 2:
+            print('FeatureGenerator ...')
 
         # Hand Written Features
         simple_feature_generator = SimpleFeatureGenerator()
         df_features = pd.concat([df, simple_feature_generator.fit_transform(df)], axis=1)
 
         # 1-st level
-        features = self.numerical_columns + simple_feature_generator.get_feature_names()
+        features = self.numeric + simple_feature_generator.get_feature_names()
         df_features = pd.concat([
             df_features,
             GroupAggregatedFeatureGenerator(features).fit_transform(df_features),
@@ -134,10 +136,12 @@ class GroupAggregatedFeatureGenerator(BaseEstimator, TransformerMixin):
             self.created_features = list(df_features.columns)
         else:
             if self.created_features == list(df_features.columns):
-                print('Lost features')
+                if self.verbose == 2:
+                    print('Lost features')
                 for col in df_features.columns:
                     if col not in self.created_features:
-                        print(col)
+                        if self.verbose == 2:
+                            print(col)
         return df_features
 
     def fit(self, x, y=None, **fit_params):

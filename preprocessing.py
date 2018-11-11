@@ -65,12 +65,13 @@ class Preprocessor(BaseEstimator, TransformerMixin):
         'min_group_kills_per_walk_distance'
     ]
 
-    def __init__(self, numerical_columns, id_columns=None, target_column=None, categorical_columns=None):
+    def __init__(self, numeric, id=None, target=None, categorical=None, verbose=0):
         self.features = None
-        self.id_columns = id_columns
-        self.target_column = target_column
-        self.categorical_columns = categorical_columns
-        self.numerical_columns = numerical_columns
+        self.id = id
+        self.target = target
+        self.categorical = categorical
+        self.numeric = numeric
+        self.verbose = verbose
 
         self.imputer = None
         self.scaler = None
@@ -83,13 +84,14 @@ class Preprocessor(BaseEstimator, TransformerMixin):
         :param fit_params:
         :return: DataFrame
         """
-        print('Preprocessor ...')
+        if self.verbose == 2:
+            print('Preprocessor ...')
 
         # Drop columns
         to_drop = [
             col
             for col in df.columns
-            if col in self.id_columns + [self.target_column] + self.categorical_columns
+            if col in self.id + [self.target] + self.categorical
         ]
         x = df.drop(to_drop, axis=1).copy()
 
@@ -103,7 +105,7 @@ class Preprocessor(BaseEstimator, TransformerMixin):
         # Normilize
         self.scaler = MinMaxScaler()
         self.features = x.columns
-
+        x = x.astype(np.float64)
         x = pd.DataFrame(self.scaler.fit_transform(x), columns=[
             col for col in self.features if col in self.SELECTED_FEATURES])
         return x
@@ -114,13 +116,14 @@ class Preprocessor(BaseEstimator, TransformerMixin):
         :param df: DataFrame
         :return: DataFrame
         """
-        print('Preprocessor ...')
+        if self.verbose == 2:
+            print('Preprocessor ...')
 
         # Drop ID and Categorical columns
         to_drop = [
             col
             for col in df.columns
-            if col in self.id_columns + [self.target_column] + self.categorical_columns
+            if col in self.id + [self.target] + self.categorical
         ]
         x = df.drop(to_drop, axis=1).copy()
 
@@ -133,7 +136,7 @@ class Preprocessor(BaseEstimator, TransformerMixin):
 
         # Normilize
         x = x.astype(np.float64)
-        x = pd.DataFrame(self.scaler.fit_transform(x), columns=[
+        x = pd.DataFrame(self.scaler.transform(x), columns=[
             col for col in self.features if col in self.SELECTED_FEATURES])
         return x
 

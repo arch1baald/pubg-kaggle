@@ -11,37 +11,40 @@ class NotFittedError(Exception):
 class Pipeline(BaseEstimator, TransformerMixin):
     """
     """
-    def __init__(self, numerical_columns, id_columns=None, target_column=None, categorical_columns=None):
+    def __init__(self, numeric, id=None, target=None, categorical=None, verbose=0):
         self.created_features = None
-        self.id_columns = id_columns
-        self.target_column = target_column
-        self.categorical_columns = categorical_columns
-        self.numerical_columns = numerical_columns
+        self.id = id
+        self.target = target
+        self.categorical = categorical
+        self.numeric = numeric
+        self.verbose = verbose
 
         self.feature_generator = None
         self.preprocessor = None
 
     def fit_transform(self, df, y=None, **fit_params):
-        print('Transforming ...')
+        if self.verbose == 2:
+            print('Transforming ...')
         self.feature_generator = FeatureGenerator(
-            id_columns=self.id_columns,
-            numerical_columns=self.numerical_columns,
-            categorical_columns=self.categorical_columns,
-            target_column=self.target_column,
+            id=self.id,
+            numeric=self.numeric,
+            categorical=self.categorical,
+            target=self.target,
         )
         df_features = self.feature_generator.fit_transform(df)
 
         self.preprocessor = Preprocessor(
-            id_columns=self.id_columns,
-            numerical_columns=self.numerical_columns,
-            categorical_columns=self.categorical_columns,
-            target_column=self.target_column,
+            id=self.id,
+            numeric=self.numeric,
+            categorical=self.categorical,
+            target=self.target,
         )
         x = self.preprocessor.fit_transform(df_features)
         return x
 
     def transform(self, df):
-        print('Transforming ...')
+        if self.verbose == 2:
+            print('Transforming ...')
         if self.feature_generator is None:
             raise NotFittedError(f'feature_generator = {self.feature_generator}')
         if self.preprocessor is None:

@@ -1,8 +1,10 @@
+import gc
 import re
 import os
 import bz2
 import pickle
-from datetime import datetime
+from datetime import datetime, timedelta
+from timeit import default_timer
 
 import pandas as pd
 import numpy as np
@@ -36,11 +38,11 @@ def load_data(file_name, directory='../input/', sample_size=None):
         full_file_name = 'sample_submission_V2.csv'
     else:
         full_file_name = file_name
-    print('Loading ...')
-    df = pd.read_csv(os.path.join(directory, full_file_name), nrows=sample_size)
-    print('Compressing ...')
-    df = reduce_mem_usage(df)
-    df.columns = [camelcase_to_underscore(col) for col in df.columns]
+    with Timer('Data Loading:'):
+        df = pd.read_csv(os.path.join(directory, full_file_name), nrows=sample_size)
+        df = reduce_mem_usage(df)
+        gc.collect()
+        df.columns = [camelcase_to_underscore(col) for col in df.columns]
     return df
 
 
@@ -82,6 +84,76 @@ def reduce_mem_usage(df):
     print('Decreased by {:.1f}%'.format(
         100 * (start_mem - end_mem) / start_mem))
     return df
+
+
+class Timer(object):
+    """ A timer as a context manager
+    Wraps around a timer. A custom timer can be passed
+    to the constructor. The default timer is timeit.default_timer.
+    Note that the latter measures wall clock time, not CPU time!
+    On Unix systems, it corresponds to time.time.
+    On Windows systems, it corresponds to time.clock.
+
+    Adapted from: https://github.com/brouberol/contexttimer/blob/master/contexttimer/__init__.py
+
+    Keyword arguments:
+        output -- if True, print output after exiting context.
+                  if callable, pass output to callable.
+        format -- str.format string to be used for output; default "took {} seconds"
+        prefix -- string to prepend (plus a space) to output
+                  For convenience, if you only specify this, output defaults to True.
+    """
+
+    def __init__(self, prefix="", timer=default_timer,
+                 output=None):
+        self.timer = timer
+        self.output = output
+        self.prefix = prefix
+        self.end = None
+
+    def __call__(self):
+        """ Return the current time """
+        return self.timer()
+
+    def __enter__(self):
+        """ Set the start time """
+        self.start = self()
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        """ Set the end time """
+        self.end = self()
+
+        if self.prefix and self.output is None:
+            self.output = True
+
+        if self.output:
+            output = " ".join([self.prefix, str(timedelta(seconds=self.elapsed))])
+            if callable(self.output):
+                self.output(output)
+            else:
+                print(output)
+        gc.collect()
+
+    def __str__(self):
+        return str(timedelta(seconds=self.elapsed))
+
+    @property
+    def elapsed(self):
+        """ Return the current elapsed time since start
+        If the `elapsed` property is called in the context manager scope,
+        the elapsed time bewteen start and property access is returned.
+        However, if it is accessed outside of the context manager scope,
+        it returns the elapsed time bewteen entering and exiting the scope.
+        The `elapsed` property can thus be accessed at different points within
+        the context manager scope, to time different parts of the block.
+        """
+        if self.end is None:
+            # if elapsed is called in the context manager scope
+            return self() - self.start
+        else:
+            # if elapsed is called out of the context manager scope
+            return self.end - self.start
 
 
 def split_columns_by_types(df):
@@ -138,13 +210,16 @@ def kfold_with_respect_to_groups(df, n_splits, shuffle=True, random_state=None):
     return splits
 
 
-def save_model(pipeline_model_index_score):
+def save_model(step):
     current_datetime = datetime.now().strftime('%d.%m.%Y-%H.%M.%S')
-    str_valid_score = '{0:.5f}'.format(pipeline_model_index_score['valid_score'])
+    str_valid_score = '{0:.5f}'.format(step['valid_score'])
     name = f'valid_score_{str_valid_score}__{current_datetime}'
     path = f'models/{name}.pkl.bz2'
     with bz2.BZ2File(path, 'w') as fout:
-        pickle.dump(pipeline_model_index_score, fout)
+        pickle.dump(step, fout)
+        step['cached'] = True
+    step['path'] = path
+    return step
 
 
 def load_model(path):
