@@ -104,10 +104,9 @@ class Timer(object):
                   For convenience, if you only specify this, output defaults to True.
     """
 
-    def __init__(self, prefix="", timer=default_timer,
-                 output=None):
+    def __init__(self, prefix="", verbose=0, timer=default_timer):
         self.timer = timer
-        self.output = output
+        self.verbose = verbose
         self.prefix = prefix
         self.end = None
 
@@ -124,15 +123,12 @@ class Timer(object):
         """ Set the end time """
         self.end = self()
 
-        if self.prefix and self.output is None:
-            self.output = True
-
-        if self.output:
-            output = " ".join([self.prefix, str(timedelta(seconds=self.elapsed))])
-            if callable(self.output):
-                self.output(output)
+        if self.verbose:
+            message = " ".join([self.prefix, str(timedelta(seconds=self.elapsed))])
+            if callable(self.verbose):
+                self.verbose(message)
             else:
-                print(output)
+                print(message)
         gc.collect()
 
     def __str__(self):

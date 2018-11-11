@@ -2,7 +2,7 @@ import gc
 import os
 
 from pipelines import Pipeline
-from utils import kfold_with_respect_to_groups, save_model
+from utils import kfold_with_respect_to_groups, save_model, Timer
 
 
 def assess(model, df, columns, metrics, n_splits=5, early_stopping_rounds=20, verbose=0):
@@ -23,44 +23,41 @@ def assess(model, df, columns, metrics, n_splits=5, early_stopping_rounds=20, ve
     log = []
     for train_index, valid_index in splits:
         print('\n---------------------------')
-        if verbose == 1:
-            print('Data Preparation ...')
-        pipeline = Pipeline(**columns)
-        x_train = pipeline.fit_transform(df.loc[train_index, :])
-        y_train = df.loc[train_index, columns['target']]
-        x_valid = pipeline.transform(df.loc[valid_index, :])
-        y_valid = df.loc[valid_index, columns['target']]
+        with Timer('Data Preparation:', verbose):
+            pipeline = Pipeline(**columns, verbose=verbose)
+            x_train = pipeline.fit_transform(df.loc[train_index, :])
+            y_train = df.loc[train_index, columns['target']]
+            x_valid = pipeline.transform(df.loc[valid_index, :])
+            y_valid = df.loc[valid_index, columns['target']]
 
-        if verbose == 1:
-            print('Fitting ...')
-        model.fit(
-            x_train, y_train,
-            eval_set=[(x_valid, y_valid)],
-            early_stopping_rounds=early_stopping_rounds,
-            verbose=-1 if verbose != 2 else 1,
-        )
+        with Timer('Fitting:', verbose):
+            model.fit(
+                x_train, y_train,
+                eval_set=[(x_valid, y_valid)],
+                early_stopping_rounds=early_stopping_rounds,
+                verbose=-1 if verbose != 2 else 1,
+            )
 
-        if verbose == 1:
-            print('Saving ...')
-        train_score = metrics(y_train, model.predict(x_train))
-        valid_score = metrics(y_valid, model.predict(x_valid))
-        step = dict(
-            model=model,
-            pipeline=pipeline,
-            train_score=train_score,
-            valid_score=valid_score,
-            train_index=train_index,
-            valid_index=valid_index,
-            cache_path=None,
-            cached=False,
-        )
-        try:
-            step = save_model(step)
-        except Exception:
-            if verbose == 1 :
-                print("Warning: Couldn't save the model")
-        log.append(step)
-        gc.collect()
+        with Timer('Saving:', verbose):
+            train_score = metrics(y_train, model.predict(x_train))
+            valid_score = metrics(y_valid, model.predict(x_valid))
+            step = dict(
+                model=model,
+                pipeline=pipeline,
+                train_score=train_score,
+                valid_score=valid_score,
+                train_index=train_index,
+                valid_index=valid_index,
+                cache_path=None,
+                cached=False,
+            )
+            try:
+                step = save_model(step)
+            except Exception:
+                if verbose == 1 :
+                    print("Warning: Couldn't save the model")
+            log.append(step)
+            gc.collect()
 
         if verbose == 1:
             print(step['train_score'], step['valid_score'])
