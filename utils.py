@@ -227,3 +227,48 @@ def predict_from_file(df, path):
     model = load_model(path)
     x = model['pipeline'].transform(df)
     return model['model'].predict(x)
+
+
+def scores_postprocessing(df, predicted, columns, is_test=False):
+    """
+    TODO: разобраться че тут к чему и перепроверить код, скорее всего ошибся, когда переносил из GBM.ipynb
+    :param df:
+    :param predicted:
+    :param columns:
+    :param is_test:
+    :return:
+    """
+    if is_test:
+        df_sub = pd.read_csv('input/sample_submission_V2.csv', names=['id', 'win_place_perc'])
+    else:
+        df_sub = df.loc[:, ['id', ]].copy()
+        df_sub[columns['target']] = predicted
+    df_sub = df_sub.merge(df[["id", "match_id", "group_id", "max_place", "num_groups"]], on="id", how="left")
+
+    # Sort, rank, and assign adjusted ratio
+    df_sub_group = df_sub.groupby(["match_id", "group_id"]).first().reset_index()
+    df_sub_group["rank"] = df_sub_group.groupby(["match_id"])["win_place_perc"].rank()
+    df_sub_group = df_sub_group.merge(
+        df_sub_group.groupby("match_id")["rank"].max().to_frame("max_rank").reset_index(),
+        on="match_id", how="left")
+    df_sub_group["adjusted_perc"] = (df_sub_group["rank"] - 1) / (df_sub_group["num_groups"] - 1)
+
+    df_sub = df_sub.merge(df_sub_group[["adjusted_perc", "match_id", "group_id"]], on=["match_id", "group_id"],
+                          how="left")
+    df_sub["win_place_perc"] = df_sub["adjusted_perc"]
+
+    # Deal with edge cases
+    df_sub.loc[df_sub['max_place'] == 0, "win_place_perc"] = 0
+    df_sub.loc[df_sub['max_place'] == 1, "win_place_perc"] = 1
+
+    # Align with maxPlace
+    # Credit: https://www.kaggle.com/anycode/simple-nn-baseline-4
+    subset = df_sub.loc[df_sub['max_place'] > 1]
+    gap = 1.0 / (subset['max_place'].values - 1)
+    new_perc = np.around(subset['win_place_perc'].values / gap) * gap
+    df_sub.loc[df_sub['max_place'] > 1, "win_place_perc"] = new_perc
+
+    # Edge case
+    df_sub.loc[(df_sub['max_place'] > 1) & (df_sub['num_groups'] == 1), "win_place_perc"] = 0
+    assert df_sub["win_place_perc"].isnull().sum() == 0
+    return df_sub[['id', 'win_place_perc']].copy()

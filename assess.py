@@ -2,7 +2,7 @@ import gc
 import os
 
 from pipelines import Pipeline
-from utils import kfold_with_respect_to_groups, save_model, Timer
+from utils import kfold_with_respect_to_groups, save_model, Timer, scores_postprocessing
 
 
 def assess(model, df, columns, metrics, n_splits=5, early_stopping_rounds=20, verbose=0):
@@ -38,23 +38,40 @@ def assess(model, df, columns, metrics, n_splits=5, early_stopping_rounds=20, ve
                 verbose=-1 if verbose != 2 else 1,
             )
 
+        # with Timer('Postprocessing:', verbose):
+        #     pred_train = scores_postprocessing(
+        #         df=df.loc[train_index, :],
+        #         predicted=model.predict(x_train),
+        #         columns=columns,
+        #         is_test=False,
+        #     )[columns['target']]
+        #     pred_valid = scores_postprocessing(
+        #         df=df.loc[valid_index, :],
+        #         predicted=model.predict(x_valid),
+        #         columns=columns,
+        #         is_test=False,
+        #     )[columns['target']]
+        pred_train, pred_valid = model.predict(x_train), model.predict(x_valid)
+
         with Timer('Saving:', verbose):
-            train_score = metrics(y_train, model.predict(x_train))
-            valid_score = metrics(y_valid, model.predict(x_valid))
+            train_score = metrics(y_train, pred_train)
+            valid_score = metrics(y_valid, pred_valid)
             step = dict(
                 model=model,
                 pipeline=pipeline,
                 train_score=train_score,
                 valid_score=valid_score,
+                not_adj_train_score=metrics(y_train, model.predict(x_train)),
+                not_adj_valid_score=metrics(y_valid, model.predict(x_valid)),
                 train_index=train_index,
                 valid_index=valid_index,
-                cache_path=None,
+                path=None,
                 cached=False,
             )
             try:
                 step = save_model(step)
             except Exception:
-                if verbose == 1 :
+                if verbose == 1:
                     print("Warning: Couldn't save the model")
             log.append(step)
             gc.collect()
