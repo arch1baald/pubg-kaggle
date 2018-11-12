@@ -211,10 +211,12 @@ def save_model(step):
     str_valid_score = '{0:.5f}'.format(step['valid_score'])
     name = f'valid_score_{str_valid_score}__{current_datetime}'
     path = f'models/{name}.pkl.bz2'
+    abspath = os.path.abspath(path)
     with bz2.BZ2File(path, 'w') as fout:
         pickle.dump(step, fout)
         step['cached'] = True
     step['path'] = path
+    step['abspath'] = abspath
     return step
 
 

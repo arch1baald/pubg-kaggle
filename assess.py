@@ -2,7 +2,9 @@ import gc
 import os
 
 from pipelines import Pipeline
-from utils import kfold_with_respect_to_groups, save_model, Timer, scores_postprocessing
+from utils import (
+    kfold_with_respect_to_groups, save_model, Timer, scores_postprocessing, load_data, split_columns_by_types
+)
 
 
 def assess(model, df, columns, metrics, n_splits=5, early_stopping_rounds=20, verbose=0):
@@ -85,7 +87,36 @@ def assess(model, df, columns, metrics, n_splits=5, early_stopping_rounds=20, ve
     for idx, step in enumerate(sorted(log, key=lambda dct: dct['valid_score'], reverse=True)):
         if idx == 0:
             continue
-        os.remove(step['path'])
-        if verbose == 2:
-            print('Removed:', step['path'])
+        try:
+            os.remove(step['path'])
+            if verbose == 2:
+                print('Removed:', step['abspath'])
+        except Exception:
+            if verbose == 2:
+                print("Warning: Couldn't remove file:", step['abspath'])
     return log
+
+
+def main():
+    from lightgbm import LGBMModel
+    from sklearn.metrics import mean_absolute_error
+
+    df = load_data('train', 'input', sample_size=10000)
+    columns = split_columns_by_types(df)
+    df.drop(df[df['win_place_perc'].isnull()].index, inplace=True)
+    model_params = dict(
+        objective='regression',
+        metric='mae',
+        n_jobs=-1,
+        learning_rate=0.1,
+        n_estimators=2000,
+    )
+    assessment_log = assess(
+        LGBMModel(**model_params),
+        df,
+        columns,
+        metrics=mean_absolute_error,
+        n_splits=5,
+        early_stopping_rounds=20,
+        verbose=1,
+    )
