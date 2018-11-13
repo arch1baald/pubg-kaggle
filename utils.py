@@ -21,20 +21,21 @@ def camelcase_to_underscore(string):
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
 
-def load_data(file_name, directory='../input/', sample_size=None):
+def load_data(file_name, directory='../input/', sample_size=None, normilize_names=True):
     """
     Load data from .csv file.
     Transform columns names from CamelCase to _underscore notation.
     :param file_name: file name
     :param directory: path to the directory with the file
     :param nrows: sample size
+    :param normilize_names: camelcase to underscore
     :return: DataFrame
     """
     if file_name.startswith('train'):
         full_file_name = 'train_V2.csv'
     elif file_name.startswith('test'):
         full_file_name = 'test_V2.csv'
-    elif 'submission' in file_name:
+    elif 'sub' in file_name:
         full_file_name = 'sample_submission_V2.csv'
     else:
         full_file_name = file_name
@@ -42,7 +43,8 @@ def load_data(file_name, directory='../input/', sample_size=None):
         df = pd.read_csv(os.path.join(directory, full_file_name), nrows=sample_size)
         df = reduce_mem_usage(df)
         gc.collect()
-        df.columns = [camelcase_to_underscore(col) for col in df.columns]
+        if normilize_names:
+            df.columns = [camelcase_to_underscore(col) for col in df.columns]
     return df
 
 
@@ -210,6 +212,10 @@ def save_model(step):
     current_datetime = datetime.now().strftime('%d.%m.%Y-%H.%M.%S')
     str_valid_score = '{0:.5f}'.format(step['valid_score'])
     name = f'valid_score_{str_valid_score}__{current_datetime}'
+    try:
+        os.mkdir('models', 0o777)
+    except FileExistsError:
+        pass
     path = f'models/{name}.pkl.bz2'
     abspath = os.path.abspath(path)
     with bz2.BZ2File(path, 'w') as fout:
@@ -231,46 +237,37 @@ def predict_from_file(df, path):
     return model['model'].predict(x)
 
 
-def scores_postprocessing(df, predicted, columns, is_test=False):
-    """
-    TODO: разобраться че тут к чему и перепроверить код, скорее всего ошибся, когда переносил из GBM.ipynb
-    :param df:
-    :param predicted:
-    :param columns:
-    :param is_test:
-    :return:
-    """
-    if is_test:
-        df_sub = pd.read_csv('input/sample_submission_V2.csv', names=['id', 'win_place_perc'])
-    else:
-        df_sub = df.loc[:, ['id', ]].copy()
-        df_sub[columns['target']] = predicted
-    df_sub = df_sub.merge(df[["id", "match_id", "group_id", "max_place", "num_groups"]], on="id", how="left")
+def postprocessing(pred_test, directory):
+    df_sub = load_data('sub', directory, normilize_names=False)
+    df_test = load_data('test', directory, normilize_names=False)
+    df_sub['winPlacePerc'] = pred_test
+    # Restore some columns
+    df_sub = df_sub.merge(df_test[["Id", "matchId", "groupId", "maxPlace", "numGroups"]], on="Id", how="left")
+    del df_test
 
     # Sort, rank, and assign adjusted ratio
-    df_sub_group = df_sub.groupby(["match_id", "group_id"]).first().reset_index()
-    df_sub_group["rank"] = df_sub_group.groupby(["match_id"])["win_place_perc"].rank()
+    df_sub_group = df_sub.groupby(["matchId", "groupId"]).first().reset_index()
+    df_sub_group["rank"] = df_sub_group.groupby(["matchId"])["winPlacePerc"].rank()
     df_sub_group = df_sub_group.merge(
-        df_sub_group.groupby("match_id")["rank"].max().to_frame("max_rank").reset_index(),
-        on="match_id", how="left")
-    df_sub_group["adjusted_perc"] = (df_sub_group["rank"] - 1) / (df_sub_group["num_groups"] - 1)
+        df_sub_group.groupby("matchId")["rank"].max().to_frame("max_rank").reset_index(),
+        on="matchId", how="left")
+    df_sub_group["adjusted_perc"] = (df_sub_group["rank"] - 1) / (df_sub_group["numGroups"] - 1)
 
-    df_sub = df_sub.merge(df_sub_group[["adjusted_perc", "match_id", "group_id"]], on=["match_id", "group_id"],
-                          how="left")
-    df_sub["win_place_perc"] = df_sub["adjusted_perc"]
+    df_sub = df_sub.merge(df_sub_group[["adjusted_perc", "matchId", "groupId"]], on=["matchId", "groupId"], how="left")
+    df_sub["winPlacePerc"] = df_sub["adjusted_perc"]
 
     # Deal with edge cases
-    df_sub.loc[df_sub['max_place'] == 0, "win_place_perc"] = 0
-    df_sub.loc[df_sub['max_place'] == 1, "win_place_perc"] = 1
+    df_sub.loc[df_sub.maxPlace == 0, "winPlacePerc"] = 0
+    df_sub.loc[df_sub.maxPlace == 1, "winPlacePerc"] = 1
 
     # Align with maxPlace
     # Credit: https://www.kaggle.com/anycode/simple-nn-baseline-4
-    subset = df_sub.loc[df_sub['max_place'] > 1]
-    gap = 1.0 / (subset['max_place'].values - 1)
-    new_perc = np.around(subset['win_place_perc'].values / gap) * gap
-    df_sub.loc[df_sub['max_place'] > 1, "win_place_perc"] = new_perc
+    subset = df_sub.loc[df_sub.maxPlace > 1]
+    gap = 1.0 / (subset.maxPlace.values - 1)
+    new_perc = np.around(subset.winPlacePerc.values / gap) * gap
+    df_sub.loc[df_sub.maxPlace > 1, "winPlacePerc"] = new_perc
 
     # Edge case
-    df_sub.loc[(df_sub['max_place'] > 1) & (df_sub['num_groups'] == 1), "win_place_perc"] = 0
-    assert df_sub["win_place_perc"].isnull().sum() == 0
-    return df_sub[['id', 'win_place_perc']].copy()
+    df_sub.loc[(df_sub.maxPlace > 1) & (df_sub.numGroups == 1), "winPlacePerc"] = 0
+    assert df_sub["winPlacePerc"].isnull().sum() == 0
+    return df_sub[["Id", "winPlacePerc"]]

@@ -1,9 +1,11 @@
 import gc
 import os
 
+import numpy as np
+
 from pipelines import Pipeline
 from utils import (
-    kfold_with_respect_to_groups, save_model, Timer, scores_postprocessing, load_data, split_columns_by_types
+    kfold_with_respect_to_groups, save_model, Timer, postprocessing, load_data, split_columns_by_types
 )
 
 
@@ -21,7 +23,12 @@ def assess(model, df, columns, metrics, n_splits=5, early_stopping_rounds=20, ve
     :param verbose: 0 - no logs, 1 - info, 2 - debug
     :return: iterations log
     """
-    splits = kfold_with_respect_to_groups(df, n_splits=n_splits)
+    if n_splits == 1:
+        total_rows = df.shape[0]
+        train_size = int(0.95 * total_rows)
+        splits = [(df.index[:train_size], df.index[train_size:])]
+    else:
+        splits = kfold_with_respect_to_groups(df, n_splits=n_splits)
     log = []
     for train_index, valid_index in splits:
         print('\n---------------------------')
@@ -86,7 +93,10 @@ def assess(model, df, columns, metrics, n_splits=5, early_stopping_rounds=20, ve
         print('Erasing cache ...')
     for idx, step in enumerate(sorted(log, key=lambda dct: dct['valid_score'], reverse=True)):
         if idx == 0:
+            step['best'] = True
             continue
+        step['best'] = False
+
         try:
             os.remove(step['path'])
             if verbose == 2:
@@ -101,22 +111,46 @@ def main():
     from lightgbm import LGBMModel
     from sklearn.metrics import mean_absolute_error
 
-    df = load_data('train', 'input', sample_size=10000)
+    from assess import assess
+
+    df = load_data('train', '../input', sample_size=10000)
     columns = split_columns_by_types(df)
     df.drop(df[df['win_place_perc'].isnull()].index, inplace=True)
     model_params = dict(
         objective='regression',
         metric='mae',
-        n_jobs=-1,
-        learning_rate=0.1,
+        # n_estimators=20000,
         n_estimators=2000,
+        num_leaves=31,
+        learning_rate=0.05,
+        bagging_fraction=0.7,
+        bagging_seed=0,
+        num_threads=4,
+        colsample_bytree=0.7
     )
+
     assessment_log = assess(
         LGBMModel(**model_params),
         df,
         columns,
         metrics=mean_absolute_error,
-        n_splits=5,
-        early_stopping_rounds=20,
+        n_splits=1,
+        early_stopping_rounds=200,
         verbose=1,
     )
+    del df
+
+    best_model = [step for step in assessment_log if step['best']].pop()
+    df_test = load_data('test', '../input')
+    pipeline = best_model['pipeline']
+    model = best_model['model']
+    x_test = pipeline.transform(df_test)
+    pred_test = model.predict(x_test)
+    del df_test, x_test
+
+    df_sub = load_data('sub', '../input', normilize_names=False)
+    df_sub['winPlacePerc'] = pred_test
+    df_sub_adjusted = postprocessing(pred_test, '../input')
+    df_sub.to_csv('submission.csv', index=False)
+    df_sub_adjusted.to_csv('submission_adjusted.csv', index=False)
+    print(np.corrcoef(df_sub['winPlacePerc'], df_sub_adjusted['winPlacePerc']))

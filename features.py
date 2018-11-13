@@ -1,3 +1,5 @@
+import gc
+
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 
@@ -129,7 +131,7 @@ class GroupAggregatedFeatureGenerator(BaseEstimator, TransformerMixin):
                 agg_column_names = {col: f'{agg_type}_group_{col}' for col in self.features}
                 df_aggregated.rename(columns=agg_column_names, inplace=True)
 
-                # TODO: Computational problems
+                # # TODO: Computational problems
                 # # Rank Groups by Match
                 # columns_to_select = list(agg_column_names.values())
                 # # Anyway deletes match_id
@@ -139,9 +141,9 @@ class GroupAggregatedFeatureGenerator(BaseEstimator, TransformerMixin):
                 # # Unsafe merge because of rank, which deletes match_id
                 # df_aggregated_ranked = pd.concat([df_aggregated, df_ranked], axis=1)
                 # df_features.append(df_aggregated_ranked)
-                # del df_aggregated, df_ranked
+                # del df_aggregated, df_ranked, df_aggregated_ranked
+                # gc.collect()
                 df_features.append(df_aggregated)
-                del df_aggregated
             df_features = pd.concat(df_features, axis=1)
 
             if self.created_features is None:

@@ -94,20 +94,21 @@ class Preprocessor(BaseEstimator, TransformerMixin):
                 if col in self.id + [self.target] + self.categorical
             ]
             x = df.drop(to_drop, axis=1).copy()
+            self.features = x.columns
 
             # Fill missings
             x.fillna(0, inplace=True)
 
-            # Feature Selection
-            non_selected = [col for col in x.columns if col not in self.SELECTED_FEATURES]
-            x.drop(non_selected, axis=1, inplace=True)
+            # # Feature Selection
+            # non_selected = [col for col in x.columns if col not in self.SELECTED_FEATURES]
+            # x.drop(non_selected, axis=1, inplace=True)
 
             # Normilize
             self.scaler = MinMaxScaler()
-            self.features = x.columns
             x = x.astype(np.float64)
-            x = pd.DataFrame(self.scaler.fit_transform(x), columns=[
-                col for col in self.features if col in self.SELECTED_FEATURES])
+            # x = pd.DataFrame(self.scaler.fit_transform(x), columns=[
+            #     col for col in self.features if col in self.SELECTED_FEATURES])
+            x = pd.DataFrame(self.scaler.fit_transform(x), columns=self.features)
             return x
 
     def transform(self, df):
@@ -125,17 +126,18 @@ class Preprocessor(BaseEstimator, TransformerMixin):
             ]
             x = df.drop(to_drop, axis=1).copy()
 
-            # Feature Selection
-            non_selected = [col for col in x.columns if col not in self.SELECTED_FEATURES]
-            x.drop(non_selected, axis=1, inplace=True)
+            # # Feature Selection
+            # non_selected = [col for col in x.columns if col not in self.SELECTED_FEATURES]
+            # x.drop(non_selected, axis=1, inplace=True)
 
             # Fill missings
             x.fillna(0, inplace=True)
 
             # Normilize
             x = x.astype(np.float64)
-            x = pd.DataFrame(self.scaler.transform(x), columns=[
-                col for col in self.features if col in self.SELECTED_FEATURES])
+            # x = pd.DataFrame(self.scaler.transform(x), columns=[
+            #     col for col in self.features if col in self.SELECTED_FEATURES])
+            x = pd.DataFrame(self.scaler.transform(x), columns=self.features)
             return x
 
     def fit(self, x, y=None, **fit_params):
