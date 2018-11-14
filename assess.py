@@ -136,6 +136,7 @@ def main():
         metrics=mean_absolute_error,
         n_splits=1,
         early_stopping_rounds=200,
+        # early_stopping_rounds=20000,
         verbose=1,
     )
     del df

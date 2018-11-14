@@ -3,7 +3,7 @@ import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import MinMaxScaler
 
-from utils import Timer
+from utils import Timer, reduce_mem_usage
 
 
 class Preprocessor(BaseEstimator, TransformerMixin):
@@ -103,12 +103,13 @@ class Preprocessor(BaseEstimator, TransformerMixin):
             # non_selected = [col for col in x.columns if col not in self.SELECTED_FEATURES]
             # x.drop(non_selected, axis=1, inplace=True)
 
-            # Normilize
-            self.scaler = MinMaxScaler()
-            x = x.astype(np.float64)
-            # x = pd.DataFrame(self.scaler.fit_transform(x), columns=[
-            #     col for col in self.features if col in self.SELECTED_FEATURES])
-            x = pd.DataFrame(self.scaler.fit_transform(x), columns=self.features)
+            # # Normilize
+            # self.scaler = MinMaxScaler()
+            # x = x.astype(np.float64)
+            # # x = pd.DataFrame(self.scaler.fit_transform(x), columns=[
+            # #     col for col in self.features if col in self.SELECTED_FEATURES])
+            # x = pd.DataFrame(self.scaler.fit_transform(x), columns=self.features)
+            x = reduce_mem_usage(x)
             return x
 
     def transform(self, df):
@@ -133,11 +134,12 @@ class Preprocessor(BaseEstimator, TransformerMixin):
             # Fill missings
             x.fillna(0, inplace=True)
 
-            # Normilize
-            x = x.astype(np.float64)
-            # x = pd.DataFrame(self.scaler.transform(x), columns=[
-            #     col for col in self.features if col in self.SELECTED_FEATURES])
-            x = pd.DataFrame(self.scaler.transform(x), columns=self.features)
+            # # Normilize
+            # x = x.astype(np.float64)
+            # # x = pd.DataFrame(self.scaler.transform(x), columns=[
+            # #     col for col in self.features if col in self.SELECTED_FEATURES])
+            # x = pd.DataFrame(self.scaler.transform(x), columns=self.features)
+            x = reduce_mem_usage(x)
             return x
 
     def fit(self, x, y=None, **fit_params):

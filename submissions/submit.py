@@ -89,7 +89,10 @@ def _utils(__name__):
         print('Memory usage of dataframe is {:.2f} MB'.format(start_mem))
     
         for col in df.columns:
-            col_type = df[col].dtype
+            try:
+                col_type = df[col].dtype
+            except AttributeError:
+                continue
             if col_type != object:
                 c_min = df[col].min()
                 c_max = df[col].max()
@@ -148,6 +151,10 @@ def _utils(__name__):
         def __enter__(self):
             """ Set the start time """
             self.start = self()
+    
+            if self.verbose:
+                print('\n-------------START--------------')
+                print(self.prefix, '\n')
             return self
     
         def __exit__(self, exc_type, exc_value, exc_traceback):
@@ -160,6 +167,7 @@ def _utils(__name__):
                     self.verbose(message)
                 else:
                     print(message)
+                print('--------------END---------------\n')
             gc.collect()
     
         def __str__(self):
@@ -312,7 +320,7 @@ def _features(__name__):
     import pandas as pd
     from sklearn.base import BaseEstimator, TransformerMixin
     
-    from utils import Timer
+    from utils import Timer, reduce_mem_usage
     
     
     class FeatureGenerator(BaseEstimator, TransformerMixin):
@@ -338,6 +346,7 @@ def _features(__name__):
                 # Hand Written Features
                 simple_feature_generator = SimpleFeatureGenerator(numeric=self.numeric, verbose=self.verbose)
                 df_features = pd.concat([df, simple_feature_generator.fit_transform(df)], axis=1)
+                df_features = reduce_mem_usage(df_features)
     
                 # 1-st level
                 features = self.numeric + simple_feature_generator.get_feature_names()
@@ -345,6 +354,7 @@ def _features(__name__):
                     df_features,
                     GroupAggregatedFeatureGenerator(features, verbose=self.verbose).fit_transform(df_features),
                 ], axis=1)
+                df_features = reduce_mem_usage(df_features)
     
                 if self.created_features is None:
                     self.created_features = [col for col in df_features.columns if col in df.columns]
@@ -452,6 +462,7 @@ def _features(__name__):
                     # df_features.append(df_aggregated_ranked)
                     # del df_aggregated, df_ranked, df_aggregated_ranked
                     # gc.collect()
+                    df_aggregated = reduce_mem_usage(df_aggregated)
                     df_features.append(df_aggregated)
                 df_features = pd.concat(df_features, axis=1)
     
@@ -506,7 +517,7 @@ def _preprocessing(__name__):
     from sklearn.base import BaseEstimator, TransformerMixin
     from sklearn.preprocessing import MinMaxScaler
     
-    from utils import Timer
+    from utils import Timer, reduce_mem_usage
     
     
     class Preprocessor(BaseEstimator, TransformerMixin):
@@ -606,12 +617,13 @@ def _preprocessing(__name__):
                 # non_selected = [col for col in x.columns if col not in self.SELECTED_FEATURES]
                 # x.drop(non_selected, axis=1, inplace=True)
     
-                # Normilize
-                self.scaler = MinMaxScaler()
-                x = x.astype(np.float64)
-                # x = pd.DataFrame(self.scaler.fit_transform(x), columns=[
-                #     col for col in self.features if col in self.SELECTED_FEATURES])
-                x = pd.DataFrame(self.scaler.fit_transform(x), columns=self.features)
+                # # Normilize
+                # self.scaler = MinMaxScaler()
+                # x = x.astype(np.float64)
+                # # x = pd.DataFrame(self.scaler.fit_transform(x), columns=[
+                # #     col for col in self.features if col in self.SELECTED_FEATURES])
+                # x = pd.DataFrame(self.scaler.fit_transform(x), columns=self.features)
+                x = reduce_mem_usage(x)
                 return x
     
         def transform(self, df):
@@ -636,11 +648,12 @@ def _preprocessing(__name__):
                 # Fill missings
                 x.fillna(0, inplace=True)
     
-                # Normilize
-                x = x.astype(np.float64)
-                # x = pd.DataFrame(self.scaler.transform(x), columns=[
-                #     col for col in self.features if col in self.SELECTED_FEATURES])
-                x = pd.DataFrame(self.scaler.transform(x), columns=self.features)
+                # # Normilize
+                # x = x.astype(np.float64)
+                # # x = pd.DataFrame(self.scaler.transform(x), columns=[
+                # #     col for col in self.features if col in self.SELECTED_FEATURES])
+                # x = pd.DataFrame(self.scaler.transform(x), columns=self.features)
+                x = reduce_mem_usage(x)
                 return x
     
         def fit(self, x, y=None, **fit_params):
@@ -862,6 +875,7 @@ def _assess(__name__):
             metrics=mean_absolute_error,
             n_splits=1,
             early_stopping_rounds=200,
+            # early_stopping_rounds=20000,
             verbose=1,
         )
         del df
@@ -883,7 +897,6 @@ def _assess(__name__):
     
     ##----- End assess.py --------------------------------------------------------##
     return locals()
-
 
 from assess import main
 main()

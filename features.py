@@ -3,7 +3,7 @@ import gc
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 
-from utils import Timer
+from utils import Timer, reduce_mem_usage
 
 
 class FeatureGenerator(BaseEstimator, TransformerMixin):
@@ -29,6 +29,7 @@ class FeatureGenerator(BaseEstimator, TransformerMixin):
             # Hand Written Features
             simple_feature_generator = SimpleFeatureGenerator(numeric=self.numeric, verbose=self.verbose)
             df_features = pd.concat([df, simple_feature_generator.fit_transform(df)], axis=1)
+            df_features = reduce_mem_usage(df_features)
 
             # 1-st level
             features = self.numeric + simple_feature_generator.get_feature_names()
@@ -36,6 +37,7 @@ class FeatureGenerator(BaseEstimator, TransformerMixin):
                 df_features,
                 GroupAggregatedFeatureGenerator(features, verbose=self.verbose).fit_transform(df_features),
             ], axis=1)
+            df_features = reduce_mem_usage(df_features)
 
             if self.created_features is None:
                 self.created_features = [col for col in df_features.columns if col in df.columns]
@@ -143,6 +145,7 @@ class GroupAggregatedFeatureGenerator(BaseEstimator, TransformerMixin):
                 # df_features.append(df_aggregated_ranked)
                 # del df_aggregated, df_ranked, df_aggregated_ranked
                 # gc.collect()
+                df_aggregated = reduce_mem_usage(df_aggregated)
                 df_features.append(df_aggregated)
             df_features = pd.concat(df_features, axis=1)
 

@@ -60,7 +60,10 @@ def reduce_mem_usage(df):
     print('Memory usage of dataframe is {:.2f} MB'.format(start_mem))
 
     for col in df.columns:
-        col_type = df[col].dtype
+        try:
+            col_type = df[col].dtype
+        except AttributeError:
+            continue
         if col_type != object:
             c_min = df[col].min()
             c_max = df[col].max()
@@ -119,6 +122,10 @@ class Timer(object):
     def __enter__(self):
         """ Set the start time """
         self.start = self()
+
+        if self.verbose:
+            print('\n-------------START--------------')
+            print(self.prefix, '\n')
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
@@ -131,6 +138,7 @@ class Timer(object):
                 self.verbose(message)
             else:
                 print(message)
+            print('--------------END---------------\n')
         gc.collect()
 
     def __str__(self):
